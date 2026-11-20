@@ -2,43 +2,111 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arena AI for Word</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <style>
-  body{margin:0;font-family:Segoe UI;background:#f3f4f6}
-  #top{background:#2563eb;color:white;padding:10px;display:flex;gap:8px;justify-content:center}
-  button{background:white;color:#2563eb;border:none;padding:8px 14px;border-radius:20px;font-weight:bold;cursor:pointer}
-  iframe{width:100%;height:90vh;border:none;background:white}
+  body { margin:0; font-family: Segoe UI, Arial, sans-serif; background:white; }
+  #top { background:#1a56db; color:white; padding:12px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  button { border:none; padding:10px 16px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:13px; }
+  .blue { background:white; color:#1a56db; }
+  .yellow { background:#ffeb3b; color:#333; }
+  #box { padding:20px; text-align:center; }
+  h2 { margin:10px 0; }
+  textarea { width:90%; height:140px; padding:12px; border-radius:12px; border:2px solid #ddd; font-size:14px; }
+  a.btn, .btn-primary { display:inline-block; background:#1a56db; color:white; padding:14px 26px; border-radius:30px; text-decoration:none; font-weight:bold; margin:10px 0; cursor:pointer; border:none; }
+  #status { margin:10px auto; padding:8px 12px; border-radius:8px; font-size:13px; max-width:90%; display:none; }
+  .info { background:#e0f2fe; color:#0369a1; }
+  .error { background:#fee2e2; color:#b91c1c; }
+  .success { background:#dcfce7; color:#15803d; }
+  #confirmBar { display:none; background:#fef3c7; border:1px solid #f59e0b; padding:10px; border-radius:10px; margin:10px auto; max-width:90%; }
+  .small { color:#666; font-size:12px; margin-top:15px; }
 </style>
 </head>
 <body>
+
 <div id="top">
-  <button onclick="insertPrompt()">✨ Ask to Insert in Word</button>
-  <button onclick="autoPaste()">⚡ Auto-Paste</button>
+  <button class="blue" onclick="askToInsert()">✨ Ask to Insert in Word</button>
+  <button class="yellow" onclick="autoPasteFromClipboard()">⚡ Auto-Paste Clipboard</button>
 </div>
-<iframe src="https://arena.ai/agent"></iframe>
+
+<div id="box">
+  <h2>Arena AI</h2>
+  <p>Arena blocks direct embedding, so open it here:</p>
+  <a class="btn" href="https://arena.ai/agent" target="_blank">Open Arena AI →</a>
+  <p>After Arena generates, copy it and paste below:</p>
+  <textarea id="txt" placeholder="Paste Arena AI text here..."></textarea><br>
+  
+  <div id="confirmBar">
+    <p style="margin:0 0 8px 0; font-size:13px; font-weight:bold;">Insert this text into your Word document?</p>
+    <button class="blue" style="border:1px solid #1a56db;" onclick="confirmInsert(true)">Yes, Insert</button>
+    <button style="background:#ddd; color:#333;" onclick="confirmInsert(false)">Cancel</button>
+  </div>
+
+  <div id="status"></div>
+
+  <button class="btn-primary" onclick="insertDirect()">Insert This Into Word Document</button>
+  <p class="small">Version 1.1 • Word-Safe Add-in</p>
+</div>
 
 <script>
-Office.onReady(()=>{});
+let pendingText = "";
 
-async function insertPrompt(){
-  let text = prompt("What did Arena generate? Paste it here and I'll ask if you want to insert:");
-  if(!text) return;
-  if(confirm("Do you want to paste this in your Word document?")){
-    await Word.run(async (context)=>{
-      context.document.getSelection().insertText(text, "Replace");
+Office.onReady(() => {
+  showStatus("Connected to Microsoft Word.", "info");
+});
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = 'block';
+}
+
+async function writeToWord(text) {
+  try {
+    await Word.run(async (context) => {
+      context.document.getSelection().insertText(text, Word.InsertLocation.replace);
       await context.sync();
     });
+    showStatus("Inserted into Word!", "success");
+  } catch (err) {
+    showStatus("Word error: " + err.message, "error");
   }
 }
 
-async function autoPaste(){
-  let text = prompt("Paste Arena text for auto-insert:");
-  if(!text) return;
-  await Word.run(async (context)=>{
-    context.document.getSelection().insertText(text, "Replace");
-    await context.sync();
-  });
+function insertDirect() {
+  const text = document.getElementById('txt').value.trim();
+  if (!text) return showStatus("Paste Arena text into the box first.", "error");
+  writeToWord(text);
+}
+
+function askToInsert() {
+  const text = document.getElementById('txt').value.trim();
+  if (!text) return showStatus("Paste Arena text into the box first.", "error");
+  pendingText = text;
+  document.getElementById('confirmBar').style.display = 'block';
+}
+
+function confirmInsert(approved) {
+  document.getElementById('confirmBar').style.display = 'none';
+  if (approved && pendingText) {
+    writeToWord(pendingText);
+  }
+  pendingText = "";
+}
+
+async function autoPasteFromClipboard() {
+  try {
+    const clipText = await navigator.clipboard.readText();
+    if (!clipText.trim()) return showStatus("Your clipboard is empty.", "error");
+    document.getElementById('txt').value = clipText;
+    await writeToWord(clipText);
+  } catch (err) {
+    showStatus("Clipboard blocked—paste manually into the box below.", "error");
+  }
 }
 </script>
+
 </body>
 </html>
